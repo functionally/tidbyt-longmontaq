@@ -4,7 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 if [[ ! -f config.yaml ]]; then
-  echo "ERROR: config.yaml is missing. Run: cp config.yaml.example config.yaml" >&2
+  echo "ERROR: config.yaml is missing. Run: cp config-example.yaml config.yaml" >&2
   exit 1
 fi
 

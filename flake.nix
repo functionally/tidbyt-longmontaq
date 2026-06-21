@@ -183,7 +183,7 @@
             echo ""
             if [ ! -f config.yaml ]; then
               echo "  ! config.yaml is missing — run:"
-              echo "      cp config.yaml.example config.yaml   # then fill in your keys"
+              echo "      cp config-example.yaml config.yaml   # then fill in your keys"
               echo ""
             fi
             echo "  Develop:"

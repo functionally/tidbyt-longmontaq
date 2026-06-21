@@ -2,7 +2,7 @@
 
 A Pixlet app for the Tidbyt that displays current PM2.5 / PM10 / O3 plus today/tomorrow forecast at 766 S Martin St, Longmont, CO. Primary source: **BoulderAIR LUR** (Longmont Union Reservoir, ~6 km NE). Secondary: AirNow forecast (CDPHE-issued). Includes a smoke indicator (3-hr PM2.5 rolling mean).
 
-See [design-notes.md](./design-notes.md) for the full design rationale and source comparison.
+See [design-notes.md](./design-notes.md) for the full design rationale and source comparison. Licensed under [MIT](./LICENSE) — © 2026 Brian W Bush.
 
 ## Setup
 
@@ -13,7 +13,7 @@ See [design-notes.md](./design-notes.md) for the full design rationale and sourc
 
 2. **Create config.yaml** from the template and fill in your keys:
    ```
-   cp config.yaml.example config.yaml
+   cp config-example.yaml config.yaml
    ${EDITOR:-vi} config.yaml
    ```
 
@@ -63,7 +63,7 @@ See [design-notes.md](./design-notes.md) for the full design rationale and sourc
 | --- | --- |
 | `main.star` | The Pixlet app (Starlark). Layout A — single composite frame. |
 | `flake.nix` | Nix dev shell + pixlet derivation + container image. |
-| `config.yaml.example` | Template. Copy to `config.yaml` (gitignored). |
+| `config-example.yaml` | Template. Copy to `config.yaml` (gitignored). |
 | `scripts/check.sh` | Pre-deploy sanity check of upstream sources. |
 | `scripts/preview.sh` | `pixlet serve` for browser preview. |
 | `scripts/render.sh` | Render one frame to `out.webp`. |
