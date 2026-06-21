@@ -1,0 +1,17 @@
+# Longmont AQ Tidbyt — local configuration.
+# Copy to config.yaml and fill in your values. config.yaml is gitignored.
+
+# AirNow API key — free from https://docs.airnowapi.org/
+airnow_api_key: "YOUR-AIRNOW-KEY-HERE"
+
+# Tidbyt API token — from `pixlet auth` or your Tidbyt account page.
+tidbyt_api_key: "YOUR-TIDBYT-KEY-HERE"
+
+# Tidbyt device ID — from `pixlet devices`.
+tidbyt_device_id: "YOUR-DEVICE-ID"
+
+# Installation ID — any short alphanumeric string you choose (a-z, A-Z, 0-9
+# only — no hyphens, underscores, or other punctuation, per Tidbyt's API).
+# Identifies this app on the device so re-pushing replaces the old frame
+# instead of stacking new ones.
+tidbyt_installation_id: "longmontaq"

@@ -1,0 +1,44 @@
+# longmontaq — podman kube spec for the push daemon.
+#
+# Start the pod:   podman kube play longmontaq.yaml
+# Stop the pod:    podman kube down longmontaq.yaml
+# Replace running: podman kube play --replace longmontaq.yaml
+# Container logs:  podman logs -f longmontaq-aq
+# Container shell: podman exec -it longmontaq-aq /bin/bash
+#
+# The image is built by scripts/build-container.sh, which bakes config.yaml
+# in at build time. No volume mounts or secrets are needed at launch — the
+# pod is self-contained.
+#
+# Override the push cadence by editing PUSH_INTERVAL_S below (seconds).
+# Default 600 = 10 minutes, which matches BoulderAIR's 5-min update cadence
+# at ~12 upstream hits/hour. The HTTP module's ttl_seconds caps it lower.
+#
+# Autostart on boot (rootless, per-user):
+#     systemctl --user enable --now podman-restart.service
+#   then on first run:
+#     podman kube play --replace longmontaq.yaml
+#   That service restarts pods with `restartPolicy: Always` after reboot.
+# For rootful or system-wide autostart, see `podman kube generate systemd`
+# or convert this manifest to a Quadlet (.kube file) under
+# /etc/containers/systemd/.
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: longmontaq
+  labels:
+    app: longmontaq
+spec:
+  restartPolicy: Always
+  containers:
+    - name: tidbyt
+      image: localhost/longmontaq:latest
+      env:
+        - name: PUSH_INTERVAL_S
+          value: "600"
+      # No ports exposed — the daemon only initiates outbound HTTPS to
+      # bouldair.com, airnowapi.org, and api.tidbyt.com.
+      securityContext:
+        readOnlyRootFilesystem: false  # /tmp/frame.webp is written each cycle
+        runAsNonRoot: false
