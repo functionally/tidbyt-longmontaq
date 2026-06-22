@@ -178,6 +178,9 @@ def _rolling_mean(d3, field, window_s, bounds):
 def pm25_3h_mean(d3):
     return _rolling_mean(d3, "pm2_5", SMOKE_WINDOW_S, SANE_PM25_UGM3)
 
+def pm10_3h_mean(d3):
+    return _rolling_mean(d3, "pm10", SMOKE_WINDOW_S, SANE_PM10_UGM3)
+
 def o3_8hr_mean(d3):
     """8-hour rolling mean of O3, sanity-bounded. EPA's 8-hour O3 breakpoints
     expect a true 8-hour mean — feeding spot reads inflates AQI by ~20-30
@@ -433,8 +436,8 @@ def main(config):
     pm_3day = fetch_lur_3day("pm")
     o3_3day = fetch_lur_3day("o3")
 
-    pm25, _ = lur_3day_latest(pm_3day, "pm2_5", SANE_PM25_UGM3)
-    pm10, _ = lur_3day_latest(pm_3day, "pm10", SANE_PM10_UGM3)
+    pm25_spot, _ = lur_3day_latest(pm_3day, "pm2_5", SANE_PM25_UGM3)
+    pm10_spot, _ = lur_3day_latest(pm_3day, "pm10", SANE_PM10_UGM3)
 
     # O3 AQI is based on the 8-hour rolling mean per EPA's spec — that's what
     # the O3_8H_BP breakpoints are calibrated against. Using a 5-min spot
@@ -443,18 +446,27 @@ def main(config):
     _o3_latest, o3_ts = lur_3day_latest(o3_3day, "o3", SANE_O3_PPB)
     o3_for_aqi = o3_8hr if not _is_stale(o3_ts) else None
 
+    # PM2.5 and PM10 AQI use a 3-hr rolling mean for the same reason: AirNow
+    # publishes PM AQI via NowCast, never raw 5-min spot reads, and a single
+    # spike can inflate the displayed AQI by 10+ points relative to AirNow's
+    # official number. (Validated 2026-06-22: AirNow Longmont = AQI 49 Good
+    # vs. LUR 3-hr-mean = AQI 48 vs. LUR spot = AQI 58.) Fall back to spot if
+    # the rolling mean is empty — e.g., sensor just came back online.
     pm25_3h = pm25_3h_mean(pm_3day)
+    pm10_3h = pm10_3h_mean(pm_3day)
     smoke = pm25_3h != None and pm25_3h > SMOKE_PM25_UGM3
+    pm25_for_aqi = pm25_3h if pm25_3h != None else pm25_spot
+    pm10_for_aqi = pm10_3h if pm10_3h != None else pm10_spot
 
     rows = []
-    if pm25 != None:
-        aqi, cat = aqi_from_concentration(pm25, PM25_BP)
+    if pm25_for_aqi != None:
+        aqi, cat = aqi_from_concentration(pm25_for_aqi, PM25_BP)
         if aqi != None:
-            rows.append(("PM2.5", aqi, cat, pm25))
-    if pm10 != None:
-        aqi, cat = aqi_from_concentration(pm10, PM10_BP)
+            rows.append(("PM2.5", aqi, cat, pm25_for_aqi))
+    if pm10_for_aqi != None:
+        aqi, cat = aqi_from_concentration(pm10_for_aqi, PM10_BP)
         if aqi != None:
-            rows.append(("PM10", aqi, cat, pm10))
+            rows.append(("PM10", aqi, cat, pm10_for_aqi))
     if o3_for_aqi != None:
         aqi, cat = aqi_from_concentration(o3_for_aqi, O3_8H_BP)
         if aqi != None:

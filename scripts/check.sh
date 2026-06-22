@@ -84,6 +84,35 @@ else:
 EOF
 
 echo
+echo "== Displayed PM2.5 AQI (uses 3-hr rolling mean, not spot read) =="
+python3 - <<EOF
+import json, time, sys
+d = json.loads('''${PM_3DAY}''')
+col = d["head"].index("pm2_5")
+cutoff = int(time.time()) - ${SMOKE_WINDOW}
+vals = [r[col] for r in d.get("data", []) if r[0] >= cutoff and r[col] is not None]
+if not vals:
+    print("  (no recent PM2.5 samples)"); sys.exit(0)
+mean = sum(vals) / len(vals)
+spot = d["data"][-1][col]
+
+# EPA PM2.5 AQI breakpoints (µg/m³)
+bp = [(0.0,12.0,0,50,"Good"),(12.1,35.4,51,100,"Moderate"),
+      (35.5,55.4,101,150,"USG"),(55.5,150.4,151,200,"Unhealthy"),
+      (150.5,250.4,201,300,"Very Unhealthy"),(250.5,500.4,301,500,"Hazardous")]
+def aqi(c):
+    for cl,ch,il,ih,name in bp:
+        if cl <= c <= ch:
+            return round(il + (ih-il)*(c-cl)/(ch-cl)), name
+    return None, "?"
+spot_aqi, spot_cat = aqi(spot)
+mean_aqi, mean_cat = aqi(mean)
+print(f"  Spot read (5-min):   {spot:.1f} µg/m³ → AQI {spot_aqi} ({spot_cat})  ← would inflate the display")
+print(f"  3-hr rolling mean:   {mean:.1f} µg/m³ → AQI {mean_aqi} ({mean_cat})  ← what the app now shows")
+print(f"  ({len(vals)} samples over the last 3 hours)")
+EOF
+
+echo
 echo "== Displayed O3 AQI (uses 8-hr rolling mean, not spot read) =="
 O3_3DAY=$(curl -sL --max-time 10 "https://www.bouldair.com/webdata/LUR/json/LUR_o3_3day.json" | strip_jsonp)
 python3 - <<EOF
@@ -152,6 +181,36 @@ else:
 print()
 print(f"  Forecast issuer: {pick(forecast[0], 'ForecastAgency', 'forecastAgency', 'Source', 'source')}" if forecast else "")
 EOF
+
+echo
+echo "== AirNow current observations (cross-check against LUR-derived AQI) =="
+OBS_URL="https://www.airnowapi.org/aq/observation/latLong/current/?format=application/json&latitude=${LAT}&longitude=${LNG}&distance=25&API_KEY=${AIRNOW_KEY}"
+OBS_RESP=$(curl -sL --max-time 10 -w "\n%{http_code}" "$OBS_URL")
+OBS_CODE=$(printf '%s' "$OBS_RESP" | tail -n1)
+OBS_BODY=$(printf '%s' "$OBS_RESP" | sed '$d')
+if [[ "$OBS_CODE" != "200" ]]; then
+  warn "AirNow obs returned HTTP $OBS_CODE — skipping cross-check"
+else
+  python3 - <<EOF
+import json
+obs = json.loads('''${OBS_BODY}''')
+if not obs:
+    print("  (no obs returned within 25 mi)")
+else:
+    sites = sorted({(o.get("ReportingArea") or "?") + ", " + (o.get("StateCode") or "?") for o in obs})
+    print(f"  Reporting area(s): {', '.join(sites)}")
+    for o in obs:
+        p = o.get("ParameterName", "?")
+        aqi = o.get("AQI", -1)
+        cat = (o.get("Category") or {}).get("Name", "?")
+        print(f"  {p:6s}  AQI {aqi:3d}  ({cat})")
+    print()
+    print("  These are AirNow's official NowCast AQIs at the nearest regulatory")
+    print("  monitor. They should land within a few points of the LUR 3-hr-mean")
+    print("  AQIs above; large divergence suggests sensor drift or a methodology")
+    print("  bug.")
+EOF
+fi
 
 echo
 echo "All checks passed. Safe to deploy."
