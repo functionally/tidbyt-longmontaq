@@ -13,8 +13,8 @@ if [[ ! -f config.yaml ]]; then
 fi
 
 AIRNOW_KEY="$(yq -r '.airnow_api_key' config.yaml)"
-LAT=40.147796
-LNG=-105.088271
+LAT="$(yq -r '.latitude' config.yaml)"
+LNG="$(yq -r '.longitude' config.yaml)"
 SMOKE_THRESHOLD=25.0
 SMOKE_WINDOW=10800   # 3 hours in seconds
 

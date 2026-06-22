@@ -12,8 +12,10 @@ AIRNOW_API_KEY="$(yq -r '.airnow_api_key' config.yaml)"
 TIDBYT_API_KEY="$(yq -r '.tidbyt_api_key' config.yaml)"
 TIDBYT_DEVICE_ID="$(yq -r '.tidbyt_device_id' config.yaml)"
 TIDBYT_INSTALLATION_ID="$(yq -r '.tidbyt_installation_id' config.yaml)"
+LAT="$(yq -r '.latitude' config.yaml)"
+LON="$(yq -r '.longitude' config.yaml)"
 
-for name in AIRNOW_API_KEY TIDBYT_API_KEY TIDBYT_DEVICE_ID TIDBYT_INSTALLATION_ID; do
+for name in AIRNOW_API_KEY TIDBYT_API_KEY TIDBYT_DEVICE_ID TIDBYT_INSTALLATION_ID LAT LON; do
   val="${!name}"
   if [[ -z "$val" || "$val" == "null" || "$val" == YOUR-* ]]; then
     echo "ERROR: $name not set in config.yaml" >&2
@@ -31,7 +33,11 @@ if [[ ! "$TIDBYT_INSTALLATION_ID" =~ ^[A-Za-z0-9]+$ ]]; then
 fi
 
 echo "Rendering frame…"
-pixlet render main.star "airnow_api_key=${AIRNOW_API_KEY}" -o out.webp
+pixlet render main.star \
+  "airnow_api_key=${AIRNOW_API_KEY}" \
+  "latitude=${LAT}" \
+  "longitude=${LON}" \
+  -o out.webp
 
 echo "Pushing to device ${TIDBYT_DEVICE_ID} as installation ${TIDBYT_INSTALLATION_ID}…"
 pixlet push \

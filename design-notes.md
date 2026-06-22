@@ -1,4 +1,4 @@
-# Tidbyt air-quality app — design for 766 S Martin St
+# Tidbyt air-quality app — design notes
 
 A Pixlet app for the Tidbyt that shows current conditions plus today + tomorrow forecast, prioritizing the Longmont – Municipal (LNGM) regulatory monitor at 350 Kimbark St. as the primary point observation.
 
@@ -15,13 +15,13 @@ A Pixlet app for the Tidbyt that shows current conditions plus today + tomorrow 
 
 ## Data sources, in priority order
 
-After confirming BoulderAIR exposes a live JSONP feed (see [research-notes.md](../research-notes.md), "BoulderAIR" subsection), LUR replaces AirNow as the primary obs source — it's closer to S Martin St (~6 km vs. 28 km), updates every ~5 min, and carries pollutants AirNow doesn't.
+After confirming BoulderAIR exposes a live JSONP feed (see [research-notes.md](../research-notes.md), "BoulderAIR" subsection), LUR replaces AirNow as the primary obs source — it's closer to most Front Range residences than the nearest AirNow regulatory monitor, updates every ~5 min, and carries pollutants AirNow doesn't.
 
 | Use | Source | Why this and not the alternative |
 | --- | --- | --- |
-| Current PM2.5, PM10, O3, NO2, CH4 at this address | **BoulderAIR LUR JSONP** — `https://www.bouldair.com/webdata/LUR/json/LUR_<meas>_stats.json` | LUR (Longmont Union Reservoir) is a research-grade BoulderAIR site ~6 km NE of 766 S Martin St — by far the closest real monitor. Carries pm / o3 / met (incl. NO/NO2/NOx) / voc / ch4. Today's spot reading (O3 71.5 ppb) matches AirNow's Westminster-monitor AQI 71 within rounding, confirming LUR is well calibrated. |
+| Current PM2.5, PM10, O3, NO2, CH4 at the configured location | **BoulderAIR LUR JSONP** — `https://www.bouldair.com/webdata/LUR/json/LUR_<meas>_stats.json` | LUR (Longmont Union Reservoir) is a research-grade BoulderAIR site in the Longmont area — typically the closest real monitor for Front Range locations. Carries pm / o3 / met (incl. NO/NO2/NOx) / voc / ch4. Spot reading (O3 71.5 ppb at initial calibration) matched AirNow's Westminster-monitor AQI 71 within rounding, confirming LUR is well calibrated. |
 | Backup current PM/O3 if LUR is down | **AirNow `/aq/observation/latLong/current/`** with `distance=25` | Regulatory rollup; returns the nearest reporting monitor (Denver-Boulder area). Use only if LUR returns stale or empty. |
-| Today + tomorrow forecast | **AirNow `/aq/forecast/latLong/`** at S Martin St coords | This is the CDPHE forecast surfaced verbatim (`forecastAgency: "Colorado Department of Public Health and Environment"`). Returns one row per pollutant (PM2.5, OZONE) per day, with `categoryName` and `actionDay`. BoulderAIR has no forecast. |
+| Today + tomorrow forecast | **AirNow `/aq/forecast/latLong/`** at the configured coords | This is the CDPHE forecast surfaced verbatim (`forecastAgency: "Colorado Department of Public Health and Environment"`). Returns one row per pollutant (PM2.5, OZONE) per day, with `categoryName` and `actionDay`. BoulderAIR has no forecast. |
 | Action Day advisory | Same forecast response — `actionDay: true/false` per row | First-class field, no second call needed. |
 | LNGM (CDPHE regulatory) cross-check | **AirNow `/aq/data/?`** with bbox around LNGM | Optional. Worth including for the "what does the regulatory monitor at 350 Kimbark St. say right now" cross-check. Only PM10/PM2.5 (per CDPHE site_description). |
 | CAMS sanity check (optional, v2) | **Open-Meteo `/v1/air-quality`** | A second opinion for trends and forecast spikes. Skip in v1 to keep the call count low. |
@@ -234,7 +234,7 @@ load("encoding/json.star", "json")
 load("schema.star", "schema")
 load("time.star", "time")
 
-LAT, LNG = 40.147796, -105.088271  # 766 S Martin St
+LAT, LNG = float(config["latitude"]), float(config["longitude"])  # from config.yaml
 LUR_BASE = "https://www.bouldair.com/webdata/LUR/json"
 AIRNOW   = "https://www.airnowapi.org"
 

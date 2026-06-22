@@ -22,6 +22,8 @@ if [[ ! -f config.yaml ]]; then
 fi
 
 AIRNOW_API_KEY="$(yq -r '.airnow_api_key' config.yaml)"
+LAT="$(yq -r '.latitude' config.yaml)"
+LON="$(yq -r '.longitude' config.yaml)"
 if [[ -z "$AIRNOW_API_KEY" || "$AIRNOW_API_KEY" == "null" || "$AIRNOW_API_KEY" == YOUR-* ]]; then
   echo "ERROR: airnow_api_key not set in config.yaml" >&2
   exit 1
@@ -42,6 +44,7 @@ BROWSER_HOST="${PIXLET_BROWSER_HOST:-localhost}"
 
 # URL-encode the AirNow key for the query string.
 URL_KEY="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$AIRNOW_API_KEY")"
+URL_QS="airnow_api_key=${URL_KEY}&latitude=${LAT}&longitude=${LON}"
 
 cat <<EOF
 
@@ -50,10 +53,10 @@ Pixlet serving on ${HOST}:${PORT}. Hot-reloads on main.star changes.
 Open ONE of these URLs in your browser:
 
   Pre-filled preview (recommended):
-    http://${BROWSER_HOST}:${PORT}/legacy?airnow_api_key=${URL_KEY}
+    http://${BROWSER_HOST}:${PORT}/legacy?${URL_QS}
 
   Raw rendered frame as WebP:
-    http://${BROWSER_HOST}:${PORT}/api/v1/preview.webp?airnow_api_key=${URL_KEY}
+    http://${BROWSER_HOST}:${PORT}/api/v1/preview.webp?${URL_QS}
 
   React SPA (schema form — paste the AirNow key manually):
     http://${BROWSER_HOST}:${PORT}/

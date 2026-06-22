@@ -1,4 +1,4 @@
-# Longmont AQ Tidbyt — local configuration.
+# Air Quality Tidbyt — local configuration.
 # Copy to config.yaml and fill in your values. config.yaml is gitignored.
 
 # AirNow API key — free from https://docs.airnowapi.org/
@@ -15,3 +15,9 @@ tidbyt_device_id: "YOUR-DEVICE-ID"
 # Identifies this app on the device so re-pushing replaces the old frame
 # instead of stacking new ones.
 tidbyt_installation_id: "longmontaq"
+
+# Reference latitude / longitude for the AirNow forecast lookup (decimal
+# degrees). BoulderAIR LUR is a fixed monitor regardless of these values;
+# they only steer the daily-forecast and obs-fallback AirNow calls.
+latitude:  "YOUR-LATITUDE-HERE"
+longitude: "YOUR-LONGITUDE-HERE"

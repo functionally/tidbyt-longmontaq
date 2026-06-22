@@ -1,8 +1,9 @@
-"""Longmont air-quality — Pixlet/Tidbyt app for 766 S Martin St.
+"""Air-quality Tidbyt app, Front Range Colorado.
 
-Primary source: BoulderAIR LUR (Longmont Union Reservoir, ~6 km NE)
+Primary source: BoulderAIR LUR (Longmont Union Reservoir)
   https://www.bouldair.com/webdata/LUR/json/LUR_<meas>_(stats|3day).json
-Secondary: AirNow forecast (CDPHE-issued) for today/tomorrow categories.
+Secondary: AirNow forecast (CDPHE-issued) for today/tomorrow categories,
+keyed off a user-configurable latitude/longitude.
 Fallback: AirNow current observations within 25 mi (if LUR is stale).
 
 Smoke indicator: PM2.5 3-hr rolling mean from LUR_pm_3day > 25 µg/m³ lights
@@ -16,9 +17,6 @@ load("http.star", "http")
 load("encoding/json.star", "json")
 load("schema.star", "schema")
 load("time.star", "time")
-
-LAT = 40.147796
-LNG = -105.088271
 
 LUR_BASE = "https://www.bouldair.com/webdata/LUR/json"
 AIRNOW = "https://www.airnowapi.org"
@@ -108,19 +106,19 @@ def fetch_lur_3day(meas, ttl = 300):
         return None
     return _strip_jsonp(r.body())
 
-def fetch_airnow_forecast(key):
-    if not key:
+def fetch_airnow_forecast(key, lat, lon):
+    if not key or lat == None or lon == None:
         return []
-    url = "%s/aq/forecast/latLong/?format=application/json&latitude=%f&longitude=%f&API_KEY=%s" % (AIRNOW, LAT, LNG, key)
+    url = "%s/aq/forecast/latLong/?format=application/json&latitude=%f&longitude=%f&API_KEY=%s" % (AIRNOW, lat, lon, key)
     r = http.get(url, ttl_seconds = 1800)
     if r.status_code != 200:
         return []
     return r.json() or []
 
-def fetch_airnow_obs(key):
-    if not key:
+def fetch_airnow_obs(key, lat, lon):
+    if not key or lat == None or lon == None:
         return []
-    url = "%s/aq/observation/latLong/current/?format=application/json&latitude=%f&longitude=%f&distance=25&API_KEY=%s" % (AIRNOW, LAT, LNG, key)
+    url = "%s/aq/observation/latLong/current/?format=application/json&latitude=%f&longitude=%f&distance=25&API_KEY=%s" % (AIRNOW, lat, lon, key)
     r = http.get(url, ttl_seconds = 900)
     if r.status_code != 200:
         return []
@@ -399,8 +397,8 @@ def _right_col(rows, forecast):
         ),
     )
 
-def _airnow_fallback_view(key, forecast, action_day):
-    obs = fetch_airnow_obs(key)
+def _airnow_fallback_view(key, lat, lon, forecast, action_day):
+    obs = fetch_airnow_obs(key, lat, lon)
     rows = []
     for o in obs:
         p = o.get("ParameterName", "")
@@ -427,6 +425,10 @@ def _airnow_fallback_view(key, forecast, action_day):
 
 def main(config):
     airnow_key = config.get("airnow_api_key", "")
+    lat_s = config.get("latitude", "")
+    lon_s = config.get("longitude", "")
+    lat = float(lat_s) if lat_s else None
+    lon = float(lon_s) if lon_s else None
 
     pm_3day = fetch_lur_3day("pm")
     o3_3day = fetch_lur_3day("o3")
@@ -458,13 +460,13 @@ def main(config):
         if aqi != None:
             rows.append(("O3", aqi, cat, o3_for_aqi))
 
-    forecast = fetch_airnow_forecast(airnow_key)
+    forecast = fetch_airnow_forecast(airnow_key, lat, lon)
     action_day = _action_day(forecast)
 
     if len(rows) == 0:
         return render.Root(
             delay = 10000,
-            child = _airnow_fallback_view(airnow_key, forecast, action_day),
+            child = _airnow_fallback_view(airnow_key, lat, lon, forecast, action_day),
         )
 
     if smoke:
@@ -502,6 +504,18 @@ def get_schema():
                 name = "AirNow API key",
                 desc = "Free key from airnowapi.org. Used for the daily forecast and the obs fallback.",
                 icon = "key",
+            ),
+            schema.Text(
+                id = "latitude",
+                name = "Latitude",
+                desc = "Decimal degrees. Used to query AirNow at this point (BoulderAIR LUR is fixed regardless).",
+                icon = "locationDot",
+            ),
+            schema.Text(
+                id = "longitude",
+                name = "Longitude",
+                desc = "Decimal degrees. Used to query AirNow at this point.",
+                icon = "locationDot",
             ),
         ],
     )

@@ -1,5 +1,5 @@
 {
-  description = "Longmont air-quality Tidbyt app (Pixlet/Starlark) — 766 S Martin St";
+  description = "Longmont air-quality Tidbyt app (Pixlet/Starlark)";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -94,6 +94,8 @@
           TIDBYT_KEY=$(yq -r '.tidbyt_api_key' /app/config.yaml)
           DEVICE_ID=$(yq -r '.tidbyt_device_id' /app/config.yaml)
           INSTALL_ID=$(yq -r '.tidbyt_installation_id' /app/config.yaml)
+          LAT=$(yq -r '.latitude' /app/config.yaml)
+          LON=$(yq -r '.longitude' /app/config.yaml)
 
           INTERVAL=''${PUSH_INTERVAL_S:-600}
 
@@ -101,7 +103,11 @@
 
           while true; do
             ts=$(date -uIs)
-            if pixlet render /app/main.star "airnow_api_key=''${AIRNOW_KEY}" -o /tmp/frame.webp 2>&1; then
+            if pixlet render /app/main.star \
+                "airnow_api_key=''${AIRNOW_KEY}" \
+                "latitude=''${LAT}" \
+                "longitude=''${LON}" \
+                -o /tmp/frame.webp 2>&1; then
               if pixlet push \
                   --api-token "''${TIDBYT_KEY}" \
                   --installation-id "''${INSTALL_ID}" \
@@ -178,7 +184,7 @@
 
           shellHook = ''
             echo ""
-            echo "Longmont AQ Tidbyt dev shell — 766 S Martin St"
+            echo "Longmont AQ Tidbyt dev shell"
             echo "  pixlet $(pixlet version 2>/dev/null || echo 'v${pixletVersion}')"
             echo ""
             if [ ! -f config.yaml ]; then

@@ -1,6 +1,6 @@
 # Longmont air-quality Tidbyt app
 
-A Pixlet app for the Tidbyt that displays current PM2.5 / PM10 / O3 plus today/tomorrow forecast at 766 S Martin St, Longmont, CO. Primary source: **BoulderAIR LUR** (Longmont Union Reservoir, ~6 km NE). Secondary: AirNow forecast (CDPHE-issued). Includes a smoke indicator (3-hr PM2.5 rolling mean).
+A Pixlet app for the Tidbyt that displays current PM2.5 / PM10 / O3 plus today/tomorrow forecast for a configurable Front Range location. Primary source: **BoulderAIR LUR** (Longmont Union Reservoir — a fixed monitor regardless of the configured point). Secondary: AirNow forecast (CDPHE-issued) for the configured lat/lon. Includes a smoke indicator (3-hr PM2.5 rolling mean).
 
 See [design-notes.md](./design-notes.md) for the full design rationale and source comparison. Licensed under [MIT](./LICENSE) — © 2026 Brian W Bush.
 
