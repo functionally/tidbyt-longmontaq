@@ -223,6 +223,25 @@ The device polls Tidbyt's render service every few minutes. LUR updates every ~5
 
 Use a single cache key per URL so the device's frequent re-renders don't multiply outbound calls.
 
+## Diagnostics
+
+Every render call prints a structured trace via Starlark `print()` (Pixlet routes these to stderr; the container's render loop captures both streams into `podman logs`). The trace covers every data acquisition end-to-end, so you can replay any past moment from the log alone — no need to re-fetch the upstream sources, which by then have moved on.
+
+Per-render log lines, in order:
+
+- `[fetch] GET <url> ttl=<seconds>` — every HTTP call before it goes out (AirNow URLs are redacted to strip the API key).
+- `[fetch] <name> HTTP=<status> bytes=<len>` — response code and body size.
+- `[fetch] LUR_<meas>_3day head=[...] t9=<epoch> rows=<n> first=[...] last=[...]` — schema and bounding samples of each LUR feed, so a sudden head reordering or stuck-clock condition is immediately visible.
+- `[fetch] AirNow forecast body=[...]` — full parsed AirNow JSON (these payloads are small, so dumping verbatim is cheap).
+- `[fetch] AirNow obs body=[...]` — same for the obs fallback path.
+- `[compute] pm25_spot=… pm25_3h=… pm10_spot=… pm10_3h=… o3_spot=… o3_8h=… o3_ts=… smoke=…` — the values the AQI math is about to see.
+- `[compute] row <P> conc=<X> -> AQI=<N> cat=<C>` — one line per pollutant row that made it onto the display.
+- `[compute] action_day=…` — AirNow forecast verdict.
+- `[render] FALLBACK to AirNow obs …` — only printed when LUR data was empty/stale and the fallback path took over.
+- `[render] dom=<P> aqi=<N> cat=<C> smoke=… action_day=…` — final big-tile decision.
+
+A render that misbehaves leaves a complete forensic record: the URL that was hit, what the upstream returned, the rolling means that were computed, the rows that were assembled, and the final pick. To replay: `podman logs <container> | grep -E '^\[(fetch|compute|render)\]'`, slice by the surrounding `[<iso-ts>] push ok` envelopes from the bash loop, and any past frame is reconstructible. Added 2026-06-23 in response to a 2026-06-22 incident where a real PM10 plume under wind stagnation produced an unusually high displayed AQI, with no log trail to confirm exactly what the device saw.
+
 ## Starlark sketch
 
 A working skeleton — LUR-primary, AirNow forecast, fallback to AirNow obs if LUR is stale.

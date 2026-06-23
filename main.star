@@ -101,28 +101,60 @@ def _strip_jsonp(body):
     return json.decode(body[s:e])
 
 def fetch_lur_3day(meas, ttl = 300):
-    r = http.get("%s/LUR_%s_3day.json" % (LUR_BASE, meas), ttl_seconds = ttl)
+    # Verbose tracing on every render so podman logs let us reconstruct
+    # exactly what the app saw at any past moment (used to diagnose the
+    # 2026-06-22 evening AQI-300 mystery). See design-notes "Diagnostics".
+    url = "%s/LUR_%s_3day.json" % (LUR_BASE, meas)
+    print("[fetch] GET %s ttl=%d" % (url, ttl))
+    r = http.get(url, ttl_seconds = ttl)
+    print("[fetch] LUR_%s_3day HTTP=%d bytes=%d" % (meas, r.status_code, len(r.body())))
     if r.status_code != 200:
         return None
-    return _strip_jsonp(r.body())
+    parsed = _strip_jsonp(r.body())
+    if parsed != None:
+        head = parsed.get("head", [])
+        rows = parsed.get("data", [])
+        t9 = parsed.get("t9", 0)
+        last = rows[-1] if len(rows) > 0 else []
+        first = rows[0] if len(rows) > 0 else []
+        print("[fetch] LUR_%s_3day head=%s t9=%d rows=%d first=%s last=%s" % (
+            meas, head, t9, len(rows), first, last,
+        ))
+    return parsed
+
+def _redact(url, key):
+    """Strip the AirNow key out of a URL for logging."""
+    if not key:
+        return url
+    return url.replace(key, "REDACTED")
 
 def fetch_airnow_forecast(key, lat, lon):
     if not key or lat == None or lon == None:
+        print("[fetch] AirNow forecast SKIP (missing key or coords)")
         return []
     url = "%s/aq/forecast/latLong/?format=application/json&latitude=%f&longitude=%f&API_KEY=%s" % (AIRNOW, lat, lon, key)
+    print("[fetch] GET %s ttl=1800" % _redact(url, key))
     r = http.get(url, ttl_seconds = 1800)
+    print("[fetch] AirNow forecast HTTP=%d bytes=%d" % (r.status_code, len(r.body())))
     if r.status_code != 200:
         return []
-    return r.json() or []
+    body = r.json() or []
+    print("[fetch] AirNow forecast body=%s" % body)
+    return body
 
 def fetch_airnow_obs(key, lat, lon):
     if not key or lat == None or lon == None:
+        print("[fetch] AirNow obs SKIP (missing key or coords)")
         return []
     url = "%s/aq/observation/latLong/current/?format=application/json&latitude=%f&longitude=%f&distance=25&API_KEY=%s" % (AIRNOW, lat, lon, key)
+    print("[fetch] GET %s ttl=900" % _redact(url, key))
     r = http.get(url, ttl_seconds = 900)
+    print("[fetch] AirNow obs HTTP=%d bytes=%d" % (r.status_code, len(r.body())))
     if r.status_code != 200:
         return []
-    return r.json() or []
+    body = r.json() or []
+    print("[fetch] AirNow obs body=%s" % body)
+    return body
 
 def _in_range(v, bounds):
     """True if v is a numeric value within (inclusive) bounds. Used to drop
@@ -270,11 +302,26 @@ def _fire_icon():
     )
 
 def _alert_badge(smoke, action_day):
+    # Fire icon (5x7) and ACT chip (14x7) both fit in the badge slot at
+    # the top of a 28-wide tile, so render both side-by-side when both
+    # are active. Smoke goes first since it's a now-condition; ACT is a
+    # forecast advisory.
+    badges = []
     if smoke:
-        return _fire_icon()
+        badges.append(_fire_icon())
     if action_day:
-        return _badge("ACT", "#FF7E00")
-    return None
+        badges.append(_badge("ACT", "#FF7E00"))
+    if len(badges) == 0:
+        return None
+    if len(badges) == 1:
+        return badges[0]
+    return render.Row(
+        cross_align = "center",
+        children = [
+            badges[0],
+            render.Padding(pad = (2, 0, 0, 0), child = badges[1]),
+        ],
+    )
 
 def _big_tile(dom, smoke, action_day):
     """Left tile: 28x32. Big AQI number centered (color-coded category
@@ -401,6 +448,7 @@ def _right_col(rows, forecast):
     )
 
 def _airnow_fallback_view(key, lat, lon, forecast, action_day):
+    print("[render] FALLBACK to AirNow obs (LUR rows empty or stale)")
     obs = fetch_airnow_obs(key, lat, lon)
     rows = []
     for o in obs:
@@ -458,6 +506,10 @@ def main(config):
     pm25_for_aqi = pm25_3h if pm25_3h != None else pm25_spot
     pm10_for_aqi = pm10_3h if pm10_3h != None else pm10_spot
 
+    print("[compute] pm25_spot=%s pm25_3h=%s pm10_spot=%s pm10_3h=%s o3_spot=%s o3_8h=%s o3_ts=%d smoke=%s" % (
+        pm25_spot, pm25_3h, pm10_spot, pm10_3h, _o3_latest, o3_8hr, o3_ts, smoke,
+    ))
+
     rows = []
     if pm25_for_aqi != None:
         aqi, cat = aqi_from_concentration(pm25_for_aqi, PM25_BP)
@@ -472,8 +524,12 @@ def main(config):
         if aqi != None:
             rows.append(("O3", aqi, cat, o3_for_aqi))
 
+    for r in rows:
+        print("[compute] row %s conc=%s -> AQI=%d cat=%d" % (r[0], r[3], r[1], r[2]))
+
     forecast = fetch_airnow_forecast(airnow_key, lat, lon)
     action_day = _action_day(forecast)
+    print("[compute] action_day=%s" % action_day)
 
     if len(rows) == 0:
         return render.Root(
@@ -494,6 +550,10 @@ def main(config):
         for r in rows[1:]:
             if r[1] > dom[1]:
                 dom = r
+
+    print("[render] dom=%s aqi=%d cat=%d smoke=%s action_day=%s" % (
+        dom[0], dom[1], dom[2], smoke, action_day,
+    ))
 
     return render.Root(
         delay = 10000,
