@@ -82,16 +82,40 @@ def _round_half_up(x):
         return int(x + 0.5)
     return -int(-x + 0.5)
 
-def aqi_from_concentration(c, breakpoints):
+def aqi_from_concentration(c, breakpoints, trunc_decimals = 0):
+    """EPA AQI lookup. The breakpoint tables use 1-unit gaps between
+    ranges (e.g., O3 Good ends at 54 ppb and Moderate starts at 55 ppb,
+    with nothing in between). EPA's Reporting Technical Assistance
+    Document specifies that the measured concentration must be
+    *truncated* to the table's precision before lookup so values
+    always fall cleanly into one range. Without that step, a real
+    measurement of 54.07 ppb O3 falls in the 54-55 gap, drops through
+    every range, and the old fallback returned the table's max — AQI
+    300 from a measurement that should have read AQI 50.
+
+    `trunc_decimals` matches the breakpoint table's precision: 0 for
+    O3 (integer ppb) and PM10 (integer µg/m³), 1 for PM2.5 (one
+    decimal µg/m³)."""
     if c == None:
         return None, 0
+    if trunc_decimals == 0:
+        c = float(int(c))
+    elif trunc_decimals == 1:
+        c = float(int(c * 10.0)) / 10.0
     for bp in breakpoints:
         c_lo, c_hi, i_lo, i_hi, cat = bp[0], bp[1], bp[2], bp[3], bp[4]
         if c >= c_lo and c <= c_hi:
             aqi = _round_half_up((i_hi - i_lo) * (c - c_lo) / (c_hi - c_lo) + i_lo)
             return aqi, cat
     top = breakpoints[-1]
-    return top[3], top[4]
+    if c > top[1]:
+        # Genuinely above the tabulated maximum — clamp to the top.
+        return top[3], top[4]
+    # Shouldn't be reachable once we truncate. Refuse to publish a
+    # value rather than return the (wildly wrong) table max as the
+    # old code did — better to drop the pollutant row than to flash
+    # a Very-Unhealthy AQI on a Good day.
+    return None, 0
 
 def _strip_jsonp(body):
     s = body.find("{")
@@ -512,15 +536,15 @@ def main(config):
 
     rows = []
     if pm25_for_aqi != None:
-        aqi, cat = aqi_from_concentration(pm25_for_aqi, PM25_BP)
+        aqi, cat = aqi_from_concentration(pm25_for_aqi, PM25_BP, trunc_decimals = 1)
         if aqi != None:
             rows.append(("PM2.5", aqi, cat, pm25_for_aqi))
     if pm10_for_aqi != None:
-        aqi, cat = aqi_from_concentration(pm10_for_aqi, PM10_BP)
+        aqi, cat = aqi_from_concentration(pm10_for_aqi, PM10_BP, trunc_decimals = 0)
         if aqi != None:
             rows.append(("PM10", aqi, cat, pm10_for_aqi))
     if o3_for_aqi != None:
-        aqi, cat = aqi_from_concentration(o3_for_aqi, O3_8H_BP)
+        aqi, cat = aqi_from_concentration(o3_for_aqi, O3_8H_BP, trunc_decimals = 0)
         if aqi != None:
             rows.append(("O3", aqi, cat, o3_for_aqi))
 
